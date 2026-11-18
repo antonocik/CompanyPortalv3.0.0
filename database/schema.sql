@@ -7,6 +7,8 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS activity_logs;
+DROP TABLE IF EXISTS attendance_records;
+DROP TABLE IF EXISTS attendance_schedules;
 DROP TABLE IF EXISTS uploads;
 DROP TABLE IF EXISTS documents;
 DROP TABLE IF EXISTS announcements;
@@ -51,6 +53,7 @@ CREATE TABLE users (
     username      VARCHAR(60) NOT NULL,
     email         VARCHAR(150) NOT NULL,
     photo_id      BIGINT UNSIGNED NULL,
+    face_descriptor TEXT NULL,
     password      VARCHAR(255) NOT NULL,
     role          ENUM('admin', 'user') NOT NULL DEFAULT 'user',
     department_id INT UNSIGNED NULL,
@@ -130,6 +133,7 @@ CREATE TABLE attendance_records (
     id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
     user_id         INT UNSIGNED NOT NULL,
     schedule_id     INT UNSIGNED NULL,
+    face_image_id   BIGINT UNSIGNED NULL,
     attendance_date DATE NOT NULL,
     check_in        TIME NULL,
     check_out       TIME NULL,

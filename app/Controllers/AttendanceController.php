@@ -414,4 +414,163 @@ final class AttendanceController extends Controller
         [$hour, $minute] = array_pad(explode(':', $time, 2), 2, '0');
         return ((int) $hour * 60) + (int) $minute;
     }
+
+    public function face(): void
+    {
+        $this->requireAuth();
+
+        $userId    = (int) Auth::id();
+        $recordMdl = new AttendanceRecord();
+        $record    = $recordMdl->findForUserDate($userId, date('Y-m-d'));
+
+        $user = (new \App\Models\User())->find($userId);
+        $enrolled = $user['face_descriptor'] ?? null;
+
+        $this->view('pages/attendance_face', [
+            'title'     => 'Absensi Wajah - ' . \App\Config\App::NAME,
+            'record'    => $record,
+            'enrolled'  => $enrolled,
+        ]);
+    }
+
+    public function faceEnroll(): void
+    {
+        $this->requireAuth();
+        $this->verifyCsrf();
+
+        $descriptor = (string) Input::post('descriptor', '');
+        $image      = (string) Input::post('image', '');
+
+        $decoded = json_decode($descriptor, true);
+        if (!is_array($decoded) || count($decoded) !== 128) {
+            Session::flash('error', 'Data wajah tidak valid. Coba lagi.');
+            $this->redirect('/attendance/face');
+        }
+
+        $userId = (int) Auth::id();
+        $mediaId = null;
+        if (preg_match('#^data:image/(png|jpeg|jpg|webp);base64,#i', $image)) {
+            $comma  = strpos($image, ',');
+            $header = substr($image, 0, $comma);
+            $binary = base64_decode(substr($image, $comma + 1), true);
+            if ($binary !== false && $binary !== '') {
+                preg_match('#^data:image/([a-zA-Z0-9+]+);base64#', $header, $m);
+                $ext  = strtolower($m[1] ?? 'jpeg');
+                if ($ext === 'jpg') $ext = 'jpeg';
+                $mime = 'image/' . $ext;
+                try {
+                    $stored = (new \App\Models\Media())->store([
+                        'filename'      => 'face_enroll_' . date('YmdHis') . '.' . $ext,
+                        'original_name' => 'face_enroll.' . $ext,
+                        'filesize'      => strlen($binary),
+                        'filetype'      => $mime,
+                        'data'          => $binary,
+                    ], 'face', $userId);
+                    $mediaId = $stored['id'];
+                } catch (\Throwable $e) {
+                }
+            }
+        }
+
+        (new \App\Models\User())->update($userId, [
+            'face_descriptor' => json_encode(array_values($decoded)),
+        ]);
+
+        (new ActivityLog())->log($userId, 'Mendaftarkan wajah');
+        Session::flash('success', 'Wajah berhasil didaftarkan. Anda sekarang dapat absen dengan wajah.');
+        $this->redirect('/attendance/face');
+    }
+
+    public function faceCheckIn(): void
+    {
+        $this->requireAuth();
+        $this->verifyCsrf();
+
+        $image = (string) Input::post('image', '');
+        if (!preg_match('#^data:image/(png|jpeg|jpg|webp);base64,#i', $image)) {
+            Session::flash('error', 'Gambar wajah tidak valid.');
+            $this->redirect('/attendance/face');
+        }
+
+        $comma  = strpos($image, ',');
+        $header = substr($image, 0, $comma);
+        $binary = base64_decode(substr($image, $comma + 1), true);
+        if ($binary === false || $binary === '') {
+            Session::flash('error', 'Gagal membaca gambar wajah.');
+            $this->redirect('/attendance/face');
+        }
+
+        preg_match('#^data:image/([a-zA-Z0-9+]+);base64#', $header, $m);
+        $ext  = strtolower($m[1] ?? 'jpeg');
+        if ($ext === 'jpg') {
+            $ext = 'jpeg';
+        }
+        $mime = 'image/' . $ext;
+
+        $descriptorJson = (string) Input::post('descriptor', '');
+        $descriptor     = json_decode($descriptorJson, true);
+        $matchedUser    = null;
+        if (is_array($descriptor) && count($descriptor) === 128) {
+            $matchedUser = (new \App\Models\User())->findFaceMatch($descriptor);
+        }
+
+        $hadDescriptor = is_array($descriptor) && count($descriptor) === 128;
+        if ($matchedUser === null && $hadDescriptor) {
+            Session::flash('error', 'Wajah tidak dikenali. Absen ditolak.');
+            $this->redirect('/attendance/face');
+        }
+        if ($matchedUser === null) {
+            $matchedUser = ['id' => Auth::id(), 'fullname' => Auth::user()['fullname'] ?? 'User'];
+        }
+
+        $userId = (int) $matchedUser['id'];
+
+        try {
+            $stored = (new \App\Models\Media())->store([
+                'filename'      => 'face_' . date('YmdHis') . '.' . $ext,
+                'original_name' => 'face_checkin.' . $ext,
+                'filesize'      => strlen($binary),
+                'filetype'      => $mime,
+                'data'          => $binary,
+            ], 'face', $userId);
+        } catch (\Throwable $e) {
+            Session::flash('error', 'Gagal menyimpan foto wajah.');
+            $this->redirect('/attendance/face');
+        }
+
+        $date      = date('Y-m-d');
+        $now       = date('H:i:s');
+        $recordMdl = new AttendanceRecord();
+        $existing  = $recordMdl->findForUserDate($userId, $date);
+
+        $name = $matchedUser['fullname'] ?? 'User';
+
+        if ($existing === null) {
+            $recordMdl->create([
+                'user_id'         => $userId,
+                'schedule_id'     => null,
+                'face_image_id'   => $stored['id'],
+                'attendance_date' => $date,
+                'check_in'        => $now,
+                'check_out'       => null,
+                'status'          => 'present',
+                'note'            => 'Absensi wajah: ' . $name,
+            ]);
+            Session::flash('success', 'Absensi masuk wajah berhasil dicatat untuk ' . $name . '.');
+        } else {
+            if ($existing['check_out'] === null) {
+                $recordMdl->update((int) $existing['id'], [
+                    'check_out'     => $now,
+                    'face_image_id' => $stored['id'],
+                ]);
+                Session::flash('success', 'Absensi keluar wajah berhasil dicatat untuk ' . $name . '.');
+            } else {
+                Session::flash('info', $name . ' sudah melakukan absensi masuk dan keluar hari ini.');
+            }
+        }
+
+        (new ActivityLog())->log($userId, 'Absensi wajah: ' . $name);
+        $this->redirect('/attendance/face');
+    }
+
 }

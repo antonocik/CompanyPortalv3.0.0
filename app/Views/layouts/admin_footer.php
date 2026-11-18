@@ -4,6 +4,10 @@
  */
 declare(strict_types=1);
 
+if (defined('PARTIAL_REQUEST') && PARTIAL_REQUEST) {
+    return;
+}
+
 use App\Config\App;
 use App\Core\Session;
 

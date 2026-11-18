@@ -13,7 +13,7 @@ final class AttendanceRecord extends Model
 {
     protected string $table = 'attendance_records';
     protected array $fillable = [
-        'user_id', 'schedule_id', 'attendance_date',
+        'user_id', 'schedule_id', 'face_image_id', 'attendance_date',
         'check_in', 'check_out', 'status', 'note',
     ];
 

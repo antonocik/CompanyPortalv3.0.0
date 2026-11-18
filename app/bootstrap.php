@@ -10,6 +10,18 @@ define('APP_VIEW_PATH', APP_ROOT . '/app/Views');
 
 date_default_timezone_set('Asia/Jakarta');
 
+$_partial = false;
+if (isset($_GET['partial']) && $_GET['partial'] !== '' && $_GET['partial'] !== '0') {
+    $_partial = true;
+}
+if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string) $_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+    // only treat as partial for GET page navigations, not JSON endpoints handled by controllers
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+        $_partial = true;
+    }
+}
+define('PARTIAL_REQUEST', $_partial);
+
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 ini_set('log_errors', '1');

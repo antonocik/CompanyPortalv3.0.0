@@ -145,6 +145,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
             }
 
+            // Attendance schedules
+            $schedules = [
+                ['Shift Reguler', '1,2,3,4,5', '08:00:00', '17:00:00', 15, 'Kantor Pusat', 1],
+                ['Shift Sabtu', '6', '08:00:00', '12:00:00', 15, 'Kantor Pusat', 1],
+            ];
+            $insertSchedule = $pdo->prepare(
+                'INSERT INTO attendance_schedules
+                    (name, days_of_week, start_time, end_time, late_tolerance, location, is_active, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            );
+            foreach ($schedules as $schedule) {
+                $insertSchedule->execute([
+                    $schedule[0], $schedule[1], $schedule[2], $schedule[3],
+                    $schedule[4], $schedule[5], $schedule[6], $now, $now,
+                ]);
+            }
+
             // Settings
             $settings = [
                 'company_name'    => 'Company Portal',

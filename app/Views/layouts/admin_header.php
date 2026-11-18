@@ -14,11 +14,17 @@ $documentTitle = $title ?? 'Dashboard';
 $pageTitle    = preg_replace('/\s+-\s+' . preg_quote(App::NAME, '/') . '$/', '', $documentTitle) ?: 'Dashboard';
 $flashSuccess = Session::pullFlash('success');
 $flashError   = Session::pullFlash('error');
+$flashInfo    = Session::pullFlash('info');
 
 try {
     $companyName = (new \App\Models\Setting())->get('company_name', App::NAME);
 } catch (\Throwable) {
     $companyName = App::NAME;
+}
+
+if (defined('PARTIAL_REQUEST') && PARTIAL_REQUEST) {
+    header('X-Page-Title: ' . $documentTitle);
+    return;
 }
 ?>
 <!DOCTYPE html>
@@ -143,6 +149,13 @@ try {
               <p>Absensi</p>
             </a>
           </li>
+
+          <li class="nav-item">
+            <a href="<?= url('/attendance/face'); ?>" class="nav-link <?= nav_active('/attendance/face'); ?>">
+              <i class="nav-icon ti ti-face-id"></i>
+              <p>Absensi Wajah</p>
+            </a>
+          </li>
           <li class="nav-item">
             <a href="<?= url('/announcements'); ?>" class="nav-link <?= nav_active('/announcements'); ?>">
               <i class="nav-icon ti ti-speakerphone"></i>
@@ -230,6 +243,13 @@ try {
         <?php if ($flashError): ?>
           <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <i class="ti ti-alert-triangle-filled me-2"></i><?= e($flashError); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Tutup"></button>
+          </div>
+        <?php endif; ?>
+
+        <?php if ($flashInfo): ?>
+          <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <i class="ti ti-info-circle me-2"></i><?= e($flashInfo); ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Tutup"></button>
           </div>
         <?php endif; ?>

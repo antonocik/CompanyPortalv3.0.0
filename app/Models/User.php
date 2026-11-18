@@ -11,7 +11,7 @@ final class User extends Model
     protected string $table = 'users';
     protected array $fillable = [
         'fullname', 'username', 'email', 'photo_id', 'password', 'role',
-        'department_id', 'status', 'last_login',
+        'department_id', 'status', 'last_login', 'face_descriptor',
     ];
 
     public function findByLogin(string $login): ?array
@@ -59,5 +59,34 @@ final class User extends Model
     public function countActive(): int
     {
         return $this->count('status = ?', ['active']);
+    }
+
+    /** Find the enrolled user whose face descriptor is closest to the given one. */
+    public function findFaceMatch(array $descriptor, float $threshold = 0.6): ?array
+    {
+        $rows = Database::query(
+            'SELECT id, fullname, username, face_descriptor FROM users WHERE face_descriptor IS NOT NULL'
+        )->fetchAll();
+
+        $best = null;
+        $bestDist = $threshold;
+        foreach ($rows as $row) {
+            $stored = json_decode((string) $row['face_descriptor'], true);
+            if (!is_array($stored) || count($stored) !== count($descriptor)) {
+                continue;
+            }
+            $sum = 0.0;
+            for ($i = 0; $i < count($descriptor); $i++) {
+                $d = (float) $descriptor[$i] - (float) $stored[$i];
+                $sum += $d * $d;
+            }
+            $dist = sqrt($sum);
+            if ($dist < $bestDist) {
+                $bestDist = $dist;
+                $best = $row;
+                $best['_distance'] = $dist;
+            }
+        }
+        return $best;
     }
 }
